@@ -1,5 +1,6 @@
 console.clear();
 const fs = require('fs');
+const fsPromises = fs.promises;
 const path = require('path');
 
 const componentsFolderPath = './06-build-page/components';
@@ -27,50 +28,90 @@ function replaceTemplateTags() {
       return;
     }
 
-    const componentFiles = fs.readdirSync(componentsFolderPath);
-    let finalContent = templateContent;
+    fs.readdir(componentsFolderPath, (error, componentFiles) => {
+      if (error) {
+        console.error('Error reading components folder:', error);
+        return;
+      }
 
-    componentFiles.forEach((componentFile) => {
-      const componentName = path.parse(componentFile).name;
-      const componentContent = fs.readFileSync(
-        path.join(componentsFolderPath, componentFile),
-        'utf-8',
-      );
-      const componentTag = `{{${componentName}}}`;
+      let finalContent = templateContent;
 
-      finalContent = finalContent.replace(componentTag, componentContent);
+      componentFiles.forEach((componentFile) => {
+        const componentName = path.parse(componentFile).name;
+        const componentFilePath = path.join(
+          componentsFolderPath,
+          componentFile,
+        );
+
+        fs.readFile(componentFilePath, 'utf-8', (error, componentContent) => {
+          if (error) {
+            console.error(`Error reading ${componentFile}:`, error);
+            return;
+          }
+
+          const componentTag = `{{${componentName}}}`;
+          finalContent = finalContent.replace(componentTag, componentContent);
+
+          if (
+            componentFiles.indexOf(componentFile) ===
+            componentFiles.length - 1
+          ) {
+            writeFile(finalContent);
+          }
+        });
+      });
     });
-
-    fs.writeFile(
-      path.join(outputFolderPath, 'index.html'),
-      finalContent,
-      'utf-8',
-      (error) => {
-        if (error) {
-          console.error('Error writing index.html file:', error);
-          return;
-        }
-
-        console.log('index.html file created successfully!');
-        compileStyles();
-      },
-    );
   });
 }
 
+function writeFile(finalContent) {
+  fs.writeFile(
+    path.join(outputFolderPath, 'index.html'),
+    finalContent,
+    'utf-8',
+    (error) => {
+      if (error) {
+        console.error('Error writing index.html file:', error);
+        return;
+      }
+
+      console.log('index.html file created successfully!');
+      compileStyles();
+    },
+  );
+}
+
 function compileStyles() {
-  const cssFiles = fs
-    .readdirSync(stylesFolderPath)
-    .filter((file) => path.extname(file) === '.css');
-  let cssContent = '';
+  fs.readdir(stylesFolderPath, (error, cssFiles) => {
+    if (error) {
+      console.error('Error reading styles folder:', error);
+      return;
+    }
 
-  cssFiles.forEach((cssFile) => {
-    cssContent += fs.readFileSync(
-      path.join(stylesFolderPath, cssFile),
-      'utf-8',
-    );
+    let cssContent = '';
+
+    cssFiles.forEach((cssFile) => {
+      if (path.extname(cssFile) === '.css') {
+        const cssFilePath = path.join(stylesFolderPath, cssFile);
+
+        fs.readFile(cssFilePath, 'utf-8', (error, cssFileContent) => {
+          if (error) {
+            console.error(`Error reading ${cssFile}:`, error);
+            return;
+          }
+
+          cssContent += cssFileContent;
+
+          if (cssFiles.indexOf(cssFile) === cssFiles.length - 1) {
+            writeCSSFile(cssContent);
+          }
+        });
+      }
+    });
   });
+}
 
+function writeCSSFile(cssContent) {
   fs.writeFile(
     path.join(outputFolderPath, 'style.css'),
     cssContent,
@@ -86,52 +127,35 @@ function compileStyles() {
     },
   );
 }
+async function copyAssetsFolder() {
+  try {
+    await fsPromises.mkdir(path.join(outputFolderPath, 'assets'), {
+      recursive: true,
+    });
+    const assetFiles = await fsPromises.readdir(assetsFolderPath);
 
-function copyAssetsFolder() {
-  fs.mkdir(
-    path.join(outputFolderPath, 'assets'),
-    { recursive: true },
-    (error) => {
-      if (error) {
-        console.error('Error creating assets folder:', error);
-        return;
-      }
+    for (const assetFile of assetFiles) {
+      await fsPromises.mkdir(path.join(outputFolderPath, 'assets', assetFile), {
+        recursive: true,
+      });
+      const sourceFolderPath = path.join(assetsFolderPath, assetFile);
+      const lowerFolderDir = await fsPromises.readdir(sourceFolderPath);
 
-      const assetFiles = fs.readdirSync(assetsFolderPath);
-      assetFiles.forEach((assetFile) => {
-        fs.mkdir(
-          path.join(outputFolderPath, 'assets', assetFile),
-          { recursive: true },
-          (error) => {},
+      for (const el of lowerFolderDir) {
+        const sourceFilePath = path.join(sourceFolderPath, el);
+        const destinationFilePath = path.join(
+          outputFolderPath,
+          'assets',
+          assetFile,
+          el,
         );
-      });
-      assetFiles.forEach((assetFile) => {
-        const sourceFilePath = path.join(assetsFolderPath, assetFile);
-        const lowerFolderDir = fs.readdirSync(sourceFilePath);
-        let newsourceFilePath;
-
-        lowerFolderDir.forEach((el) => {
-          newsourceFilePath = path.join(sourceFilePath, el);
-          console.log(assetFile);
-          const destinationFilePath = path.join(
-            outputFolderPath,
-            'assets',
-            assetFile,
-            el,
-          );
-
-          fs.copyFile(newsourceFilePath, destinationFilePath, (error) => {
-            if (error) {
-              console.error(`Error copying ${assetFile}:`, error);
-              return;
-            }
-
-            console.log(`Copied ${assetFile} to assets folder.`);
-          });
-        });
-      });
-    },
-  );
+        await fsPromises.copyFile(sourceFilePath, destinationFilePath);
+        console.log(`Copied ${assetFile} to assets folder.`);
+      }
+    }
+  } catch (error) {
+    console.error('Error copying assets:', error);
+  }
 }
 
 // Run the script
