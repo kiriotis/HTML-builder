@@ -50,7 +50,7 @@ function replaceTemplateTags() {
           }
 
           const componentTag = `{{${componentName}}}`;
-          finalContent = finalContent.replace(componentTag, componentContent);
+          finalContent = finalContent.replaceAll(componentTag, componentContent);
 
           if (
             componentFiles.indexOf(componentFile) ===
