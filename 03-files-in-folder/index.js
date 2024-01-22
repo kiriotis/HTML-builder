@@ -11,13 +11,22 @@ function listFilesInFolder(folderPath) {
     files.forEach((file) => {
       if (file.isFile()) {
         const filePath = path.join(folderPath, file.name);
-        const fileSize = fs.statSync(filePath).size;
         const fileType = path.extname(filePath);
+        // const fileSize = fs.statSync(filePath).size;
+        fs.stat(filePath, (err, stats) => {
+          if (err) {
+            console.error(err);
+          }
+          console.log('File:', file.name.split('.')[0]);
+          console.log('Size:', stats.size, 'bytes');
+          console.log('Type:', fileType);
+          console.log('-------------------------');
+        });
 
-        console.log('File:', file.name.split('.')[0]);
-        console.log('Size:', fileSize, 'bytes');
-        console.log('Type:', fileType);
-        console.log('-------------------------');
+        // console.log('File:', file.name.split('.')[0]);
+        // console.log('Size:', fileSize, 'bytes');
+        // console.log('Type:', fileType);
+        // console.log('-------------------------');
       }
     });
   });
